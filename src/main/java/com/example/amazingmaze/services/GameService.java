@@ -4,6 +4,7 @@ import com.example.amazingmaze.model.*;
 import com.example.amazingmaze.repositories.GameRepository;
 import com.example.amazingmaze.utils.MinotaurManager;
 import com.example.amazingmaze.utils.PortalManager;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -57,7 +58,7 @@ public class GameService {
         this.player = new Player(username, 1, 1);
         this.currentSessionId = sessionService.createSession(maze, player, complexity, size);
         this.portalManager = new PortalManager(sessionService, mazeService, currentSessionId);
-        portalManager.start(size + complexity);
+        portalManager.startPortals(size + complexity);
         this.minotaurManager = new MinotaurManager(sessionService, currentSessionId, mazeService, maze, complexity);
         playerService.addObserver(minotaurManager);
         displayMaze();
@@ -66,6 +67,7 @@ public class GameService {
         return currentSessionId;
     }
 
+    @SneakyThrows
     public void startGameLoop(String currentSessionId) {
         Scanner scanner = new Scanner(System.in);
         boolean isGameRunning = true;
@@ -161,9 +163,10 @@ public class GameService {
                 .getMaze()[y][x] == Maze.EXIT;
     }
 
+    @SneakyThrows
     public void finishGame(String currentSessionId) {
         Session session = sessionService.getSession(currentSessionId);
-        portalManager.stop();
+        portalManager.stopPortals();
         minotaurManager.stopMinotaur();
         session.setEndTime(LocalDateTime.now());
         long duration = getGameDuration(currentSessionId);

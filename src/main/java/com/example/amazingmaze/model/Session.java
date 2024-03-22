@@ -7,6 +7,7 @@ import lombok.Setter;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Getter
 @Setter
@@ -18,7 +19,7 @@ public class Session {
     private LocalDateTime endTime;
     private List<LocalDateTime> pauseTimes = new ArrayList<>();
     private List<LocalDateTime> resumeTimes = new ArrayList<>();
-    private long totalPausedDuration = 0;
+    private AtomicLong totalPausedDuration = new AtomicLong(0);
     private final int complexity;
     private final int size;
     private int score;
@@ -33,9 +34,14 @@ public class Session {
 
     public void endSession() {
         this.endTime = LocalDateTime.now();
+        this.ended = true;
+    }
+
+    public long getTotalPausedDuration() {
+        return totalPausedDuration.get();
     }
 
     public void addTotalPausedDuration(long seconds) {
-        this.totalPausedDuration += seconds;
+        totalPausedDuration.addAndGet(seconds);
     }
 }

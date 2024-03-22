@@ -7,10 +7,14 @@ import com.example.amazingmaze.model.Session;
 import com.example.amazingmaze.services.MazeService;
 import com.example.amazingmaze.services.SessionService;
 import lombok.Getter;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 public class MinotaurManager implements PlayerMoveObserver {
@@ -21,7 +25,7 @@ public class MinotaurManager implements PlayerMoveObserver {
     private final int complexity;
     @Getter
     private Minotaur minotaur;
-    private Timer minotaurTimer;
+    private ScheduledExecutorService minotaurScheduler;
     @Getter
     private CopyOnWriteArrayList<int[]> pathToPlayer = new CopyOnWriteArrayList<>();
 
@@ -35,22 +39,19 @@ public class MinotaurManager implements PlayerMoveObserver {
         this.mazeService = mazeService;
         this.maze = maze;
         this.complexity = complexity;
+        this.minotaurScheduler = Executors.newScheduledThreadPool(1);
         initializeMinotaur();
     }
 
     private void initializeMinotaur() {
         this.minotaur = new Minotaur(maze.getCols() - 2, maze.getRows() - 2);
-        this.minotaurTimer = new Timer();
         startMinotaurMovement();
     }
 
     private void startMinotaurMovement() {
-        minotaurTimer.scheduleAtFixedRate(new TimerTask() {
-            @Override
-            public void run() {
-                if (minotaur.isAlive()) moveMinotaurRandomly();
-            }
-        }, 0, 5_000 / complexity);
+        minotaurScheduler.scheduleAtFixedRate(() -> {
+            if (minotaur.isAlive()) moveMinotaurRandomly();
+        }, 0, 5_000 / complexity, TimeUnit.MILLISECONDS);
     }
 
     private void moveMinotaurRandomly() {
@@ -111,19 +112,18 @@ public class MinotaurManager implements PlayerMoveObserver {
     }
 
     private void scheduleNextMove() {
-        if (minotaurTimer != null) minotaurTimer.cancel();
-        minotaurTimer = new Timer();
-        minotaurTimer.schedule(new TimerTask() {
-            @Override
-            public void run() {
-                if (!pathToPlayer.isEmpty() && minotaur.isAlive()) {
-                    int[] nextStep = pathToPlayer.remove(0);
-                    minotaur.setX(nextStep[0]);
-                    minotaur.setY(nextStep[1]);
-                    checkIfCaughtPlayer();
-                } else this.cancel();
-            }
-        }, 0, 5_000 / complexity);
+        if (minotaurScheduler != null && !minotaurScheduler.isShutdown()) {
+            minotaurScheduler.shutdownNow();
+            minotaurScheduler = Executors.newScheduledThreadPool(1);
+        }
+        minotaurScheduler.scheduleWithFixedDelay(() -> {
+            if (!pathToPlayer.isEmpty() && minotaur.isAlive()) {
+                int[] nextStep = pathToPlayer.remove(0);
+                minotaur.setX(nextStep[0]);
+                minotaur.setY(nextStep[1]);
+                checkIfCaughtPlayer();
+            } else minotaurScheduler.shutdownNow();
+        }, 0, 5_000 / complexity, TimeUnit.MILLISECONDS);
     }
 
     private void checkIfCaughtPlayer() {
@@ -134,10 +134,13 @@ public class MinotaurManager implements PlayerMoveObserver {
         }
     }
 
+    @SneakyThrows
     public void stopMinotaur() {
-        if (minotaurTimer != null) {
-            minotaurTimer.cancel();
-            minotaurTimer = null;
+        if (minotaurScheduler != null) {
+            minotaurScheduler.shutdown();
+            if (!minotaurScheduler.awaitTermination(800, TimeUnit.MILLISECONDS)) {
+                minotaurScheduler.shutdownNow();
+            }
         }
     }
 }

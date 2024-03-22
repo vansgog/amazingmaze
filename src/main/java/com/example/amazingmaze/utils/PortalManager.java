@@ -24,7 +24,7 @@ public class PortalManager {
         this.currentSessionId = currentSessionId;
     }
 
-    public void start(int timePeriod) {
+    public void startPortals(int timePeriod) {
         scheduler.scheduleAtFixedRate(this::managePortals, 10, timePeriod, TimeUnit.SECONDS);
     }
 
@@ -37,7 +37,7 @@ public class PortalManager {
         } else mazeService.removeRandomPortal(currentMaze);
     }
 
-    public void stop() {
+    public void stopPortals() {
         if (!scheduler.isShutdown()) scheduler.shutdown();
     }
 }
