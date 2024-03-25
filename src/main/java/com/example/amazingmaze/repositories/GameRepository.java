@@ -53,7 +53,7 @@ public class GameRepository {
 
     public void displayResults() {
         log.info("Лучшие результаты:");
-        String sql = "SELECT username, size, complexity, duration, score FROM GameResults ORDER BY score DESC LIMIT 5";
+        String sql = "SELECT * FROM GameResults ORDER BY score DESC LIMIT 5";
         try (Connection connection = DriverManager.getConnection(URL, USER, PASSWORD);
              Statement statement = connection.createStatement();
              ResultSet resultSet = statement.executeQuery(sql)) {

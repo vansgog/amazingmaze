@@ -60,7 +60,6 @@ public class GameService {
         this.portalManager = new PortalManager(sessionService, mazeService, currentSessionId);
         portalManager.startPortals(size + complexity);
         this.minotaurManager = new MinotaurManager(sessionService, currentSessionId, mazeService, maze, complexity);
-        playerService.addObserver(minotaurManager);
         displayMaze();
         sessionService.getSession(currentSessionId).setStartTime(LocalDateTime.now());
         startGameLoop(this.currentSessionId);
@@ -78,8 +77,7 @@ public class GameService {
                 case "w", "a", "s", "d" :
                       playerService.movePlayer(currentSessionId, command);
                       if (mazeService.isPortalPresent(maze, player.getX(), player.getY())) teleportPlayer();
-                      if (minotaurManager.getMinotaur().getX() == player.getX() &&
-                          minotaurManager.getMinotaur().getY() == player.getY()) {
+                      if (minotaurManager.checkIfCaughtPlayer()) {
                           log.info("Минотавр убил Вас, Вы проиграли :(");
                           finishGame(currentSessionId);
                           isGameRunning = false;
@@ -153,7 +151,10 @@ public class GameService {
             player.setX(destinationPortal.getX());
             player.setY(destinationPortal.getY());
         }
-        minotaurManager.startChasingPlayer();
+        if (!minotaurManager.isChasingStarted()) {
+            playerService.addObserver(minotaurManager);
+            minotaurManager.startChasingPlayer();
+        }
     }
 
     private boolean isExitReached(int x, int y, String sessionId) {
@@ -170,10 +171,12 @@ public class GameService {
         minotaurManager.stopMinotaur();
         session.setEndTime(LocalDateTime.now());
         long duration = getGameDuration(currentSessionId);
-        int finalScore = calculateScore(session.getSize(), session.getComplexity(), currentSessionId);
-        session.setScore(finalScore);
+        if (isExitReached(player.getX(), player.getY(), currentSessionId)) {
+            int finalScore = calculateScore(session.getSize(), session.getComplexity(), currentSessionId);
+            session.setScore(finalScore);
+        } else session.setScore(0);
         sessionService.endSession(currentSessionId);
-        log.info("Игра завершена. Ваш результат: " + finalScore + ", Время: " + duration + "сек");
+        log.info("Игра завершена. Ваш результат: " + session.getScore() + ", Время: " + duration + " сек");
         while (true) {
             Scanner scanner = new Scanner(System.in);
             log.info("Начать новую игру? (Y/N): ");
@@ -188,11 +191,11 @@ public class GameService {
     }
 
     private long getGameDuration(String currentSessionId) {
-        if (sessionService.getSession(currentSessionId).getStartTime() == null ||
-            sessionService.getSession(currentSessionId).getEndTime() == null) return 0;
-        long totalDuration = Duration.between(sessionService.getSession(currentSessionId).getStartTime(),
-                                              sessionService.getSession(currentSessionId).getEndTime()).getSeconds();
-        return totalDuration - sessionService.getSession(currentSessionId).getTotalPausedDuration();
+        Session session = sessionService.getSession(currentSessionId);
+        if (session.getStartTime() == null ||
+            session.getEndTime() == null) return 0;
+        long totalDuration = Duration.between(session.getStartTime(), session.getEndTime()).getSeconds();
+        return totalDuration - session.getTotalPausedDuration();
     }
 
     private int calculateScore(int size, int complexity, String currentSessionId) {

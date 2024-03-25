@@ -28,6 +28,10 @@ public class MinotaurManager implements PlayerMoveObserver {
     private ScheduledExecutorService minotaurScheduler;
     @Getter
     private CopyOnWriteArrayList<int[]> pathToPlayer = new CopyOnWriteArrayList<>();
+    @Getter
+    private boolean chasingStarted = false;
+    private static final long INITIAL_DELAY = 0;
+    private long movementInterval;
 
     public MinotaurManager(SessionService sessionService,
                            String sessionId,
@@ -39,19 +43,24 @@ public class MinotaurManager implements PlayerMoveObserver {
         this.mazeService = mazeService;
         this.maze = maze;
         this.complexity = complexity;
-        this.minotaurScheduler = Executors.newScheduledThreadPool(1);
         initializeMinotaur();
+        this.movementInterval = 5_000 / this.complexity;
+        initializeMovementScheduler(this.movementInterval);
     }
 
     private void initializeMinotaur() {
         this.minotaur = new Minotaur(maze.getCols() - 2, maze.getRows() - 2);
-        startMinotaurMovement();
     }
 
-    private void startMinotaurMovement() {
-        minotaurScheduler.scheduleAtFixedRate(() -> {
-            if (minotaur.isAlive()) moveMinotaurRandomly();
-        }, 0, 5_000 / complexity, TimeUnit.MILLISECONDS);
+    private void initializeMovementScheduler(long interval) {
+        if (minotaurScheduler != null && !minotaurScheduler.isShutdown()) {
+            minotaurScheduler.shutdownNow();
+        }
+        minotaurScheduler = Executors.newScheduledThreadPool(1);
+        minotaurScheduler.scheduleWithFixedDelay(() -> {
+            if (!chasingStarted) moveMinotaurRandomly();
+            else continueChasingPlayer();
+        }, INITIAL_DELAY, interval, TimeUnit.MILLISECONDS);
     }
 
     private void moveMinotaurRandomly() {
@@ -73,10 +82,12 @@ public class MinotaurManager implements PlayerMoveObserver {
     }
 
     public void startChasingPlayer() {
-        int[] playerPosition = getPlayerPosition();
-        pathToPlayer = mazeService.findPath(maze, minotaur.getX(), minotaur.getY(),
-                                            playerPosition[0], playerPosition[1]);
-        continueChasingPlayer();
+        if (!chasingStarted) {
+            chasingStarted = true;
+            long chasingInterval = 4_000 / complexity;
+            initializeMovementScheduler(chasingInterval);
+            updatePlayerPosition();
+        }
     }
 
     private void continueChasingPlayer() {
@@ -84,6 +95,7 @@ public class MinotaurManager implements PlayerMoveObserver {
             int[] nextStep = pathToPlayer.remove(0);
             minotaur.setX(nextStep[0]);
             minotaur.setY(nextStep[1]);
+            checkIfCaughtPlayer();
         }
     }
 
@@ -102,7 +114,6 @@ public class MinotaurManager implements PlayerMoveObserver {
             pathToPlayer.get(pathToPlayer.size() - 1)[1] != playerPosition[1]) {
             pathToPlayer = mazeService.findPath(maze, minotaur.getX(), minotaur.getY(),
                                                 playerPosition[0], playerPosition[1]);
-            scheduleNextMove();
         }
     }
 
@@ -111,27 +122,14 @@ public class MinotaurManager implements PlayerMoveObserver {
         updatePlayerPosition();
     }
 
-    private void scheduleNextMove() {
-        if (minotaurScheduler != null && !minotaurScheduler.isShutdown()) {
-            minotaurScheduler.shutdownNow();
-            minotaurScheduler = Executors.newScheduledThreadPool(1);
-        }
-        minotaurScheduler.scheduleWithFixedDelay(() -> {
-            if (!pathToPlayer.isEmpty() && minotaur.isAlive()) {
-                int[] nextStep = pathToPlayer.remove(0);
-                minotaur.setX(nextStep[0]);
-                minotaur.setY(nextStep[1]);
-                checkIfCaughtPlayer();
-            } else minotaurScheduler.shutdownNow();
-        }, 0, 5_000 / complexity, TimeUnit.MILLISECONDS);
-    }
-
-    private void checkIfCaughtPlayer() {
+    public boolean checkIfCaughtPlayer() {
         int[] playerPosition = getPlayerPosition();
         if (minotaur.getX() == playerPosition[0] &&
             minotaur.getY() == playerPosition[1]) {
             stopMinotaur();
+            return true;
         }
+        return false;
     }
 
     @SneakyThrows
