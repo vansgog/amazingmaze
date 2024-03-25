@@ -24,14 +24,13 @@ public class MinotaurManager implements PlayerMoveObserver {
     private final Maze maze;
     private final int complexity;
     @Getter
-    private Minotaur minotaur;
+    private final Minotaur minotaur;
     private ScheduledExecutorService minotaurScheduler;
     @Getter
     private CopyOnWriteArrayList<int[]> pathToPlayer = new CopyOnWriteArrayList<>();
     @Getter
     private boolean chasingStarted = false;
     private static final long INITIAL_DELAY = 0;
-    private long movementInterval;
 
     public MinotaurManager(SessionService sessionService,
                            String sessionId,
@@ -43,13 +42,9 @@ public class MinotaurManager implements PlayerMoveObserver {
         this.mazeService = mazeService;
         this.maze = maze;
         this.complexity = complexity;
-        initializeMinotaur();
-        this.movementInterval = 5_000 / this.complexity;
-        initializeMovementScheduler(this.movementInterval);
-    }
-
-    private void initializeMinotaur() {
         this.minotaur = new Minotaur(maze.getCols() - 2, maze.getRows() - 2);
+        long movementInterval = 5_000 / this.complexity;
+        initializeMovementScheduler(movementInterval);
     }
 
     private void initializeMovementScheduler(long interval) {
@@ -130,6 +125,19 @@ public class MinotaurManager implements PlayerMoveObserver {
             return true;
         }
         return false;
+    }
+
+    public void pauseMinotaurMovement() {
+        if (minotaurScheduler != null && !minotaurScheduler.isShutdown()) {
+            minotaurScheduler.shutdownNow();
+            log.info("Движение минотавра приостановлено");
+        }
+    }
+
+    public void resumeMinotaurMovement() {
+        long currentInterval = chasingStarted ? (4_000 / complexity) : (5_000 / complexity);
+        initializeMovementScheduler(currentInterval);
+        log.info("Движение минотавра возобновлено");
     }
 
     @SneakyThrows

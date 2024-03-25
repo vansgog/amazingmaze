@@ -22,7 +22,7 @@ public class Session {
     private AtomicLong totalPausedDuration = new AtomicLong(0);
     private final int complexity;
     private final int size;
-    private int score;
+    private double score;
     private boolean ended = false;
 
     public Session(Maze maze, Player player, int complexity, int size) {

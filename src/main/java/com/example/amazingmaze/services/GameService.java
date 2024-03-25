@@ -58,7 +58,7 @@ public class GameService {
         this.player = new Player(username, 1, 1);
         this.currentSessionId = sessionService.createSession(maze, player, complexity, size);
         this.portalManager = new PortalManager(sessionService, mazeService, currentSessionId);
-        portalManager.startPortals(size + complexity);
+        portalManager.startPortals(size, complexity);
         this.minotaurManager = new MinotaurManager(sessionService, currentSessionId, mazeService, maze, complexity);
         displayMaze();
         sessionService.getSession(currentSessionId).setStartTime(LocalDateTime.now());
@@ -109,6 +109,9 @@ public class GameService {
     private void pauseGame(String currentSessionId) {
         saveCurrentGameState(currentSessionId);
         sessionService.addPauseTime(currentSessionId, LocalDateTime.now());
+        portalManager.stopPortals();
+        log.info("Работа порталов приостановлена");
+        minotaurManager.pauseMinotaurMovement();
         log.info("Игра приостановлена. Введите 'resume' чтобы продолжить");
     }
 
@@ -132,6 +135,8 @@ public class GameService {
                 session.getPlayer().setX(game.getX());
                 session.getPlayer().setY(game.getY());
                 log.info("Игра возобновлена");
+                portalManager.resumePortals();
+                minotaurManager.resumeMinotaurMovement();
                 displayMaze();
                 startGameLoop(currentSessionId);
             }
@@ -172,7 +177,7 @@ public class GameService {
         session.setEndTime(LocalDateTime.now());
         long duration = getGameDuration(currentSessionId);
         if (isExitReached(player.getX(), player.getY(), currentSessionId)) {
-            int finalScore = calculateScore(session.getSize(), session.getComplexity(), currentSessionId);
+            double finalScore = calculateScore(session.getSize(), session.getComplexity(), currentSessionId);
             session.setScore(finalScore);
         } else session.setScore(0);
         sessionService.endSession(currentSessionId);
@@ -198,10 +203,10 @@ public class GameService {
         return totalDuration - session.getTotalPausedDuration();
     }
 
-    private int calculateScore(int size, int complexity, String currentSessionId) {
+    private double calculateScore(int size, int complexity, String currentSessionId) {
         long gameDuration = getGameDuration(currentSessionId);
         if (gameDuration == 0) return 0;
-        return (int) ((size * complexity) / gameDuration * 100);
+        return (double) (size * complexity) / gameDuration * 100;
     }
 
     private void displayMaze() {

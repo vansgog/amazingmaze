@@ -13,31 +13,47 @@ import java.util.concurrent.TimeUnit;
 
 @Slf4j
 public class PortalManager {
-    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+    private ScheduledExecutorService portalScheduler;
     private final MazeService mazeService;
     private final SessionService sessionService;
     private final String currentSessionId;
+
+    private int savedTimePeriod;
+    private int savedComplexity;
 
     public PortalManager(SessionService sessionService, MazeService mazeService, String currentSessionId) {
         this.sessionService = sessionService;
         this.mazeService = mazeService;
         this.currentSessionId = currentSessionId;
+        portalScheduler = Executors.newScheduledThreadPool(1);
     }
 
-    public void startPortals(int timePeriod) {
-        scheduler.scheduleAtFixedRate(this::managePortals, 10, timePeriod, TimeUnit.SECONDS);
+    public void startPortals(int timePeriod, int complexity) {
+        this.savedTimePeriod = timePeriod;
+        this.savedComplexity = complexity;
+        portalScheduler.scheduleAtFixedRate(() -> managePortals(complexity), 10, timePeriod, TimeUnit.SECONDS);
     }
 
-    private void managePortals() {
+    public void resumePortals() {
+        if (portalScheduler.isShutdown() || portalScheduler.isTerminated()) {
+            portalScheduler = Executors.newScheduledThreadPool(1);
+            startPortals(savedTimePeriod, savedComplexity);
+            log.info("Работа порталов возобновлена");
+        }
+    }
+
+    private void managePortals(int complexity) {
         Session session = sessionService.getSession(currentSessionId);
         Maze currentMaze = session.getMaze();
         if (new Random().nextBoolean()) {
-            mazeService.addPortal(currentMaze);
-            mazeService.addPortal(currentMaze);
+            for (int i = 0; complexity <= 5 ? i < (10 / complexity) :
+                                              i < (20 / complexity); i++) {
+                mazeService.addPortal(currentMaze);
+            }
         } else mazeService.removeRandomPortal(currentMaze);
     }
 
     public void stopPortals() {
-        if (!scheduler.isShutdown()) scheduler.shutdown();
+        if (!portalScheduler.isShutdown()) portalScheduler.shutdownNow();
     }
 }
